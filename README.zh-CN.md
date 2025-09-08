@@ -1,3 +1,7 @@
+<div align="center">
+<img src="public/banner_CN.png"/>
+</div>
+
 # 🗺️ Pixel Travel Map
 
 > ✨ 一个 AI 驱动的互动式「旅游打卡地图」 
@@ -29,7 +33,10 @@
 
 ## 🎥 视频演示
 
-
+<p><b>点击图片观看演示视频</b></p>
+<div align="center">
+<a href="https://www.bilibili.com/video/BV11dYjzREGd/?spm_id_from=333.1387.homepage.video_card.click&vd_source=180b54ccdee7adafa153cde5e97d8245"><img src="public\demo.png" alt=""></a>
+</div>
 
 ---
 
@@ -53,4 +60,4 @@ npm run dev
 
 ## 💡 致谢
 
-灵感来源于 Alexander Chen 的[推文](x.com/alexanderchen/status/1961169243199672648)
+灵感来源于 Alexander Chen 的[推文](https://x.com/alexanderchen/status/1961169243199672648)

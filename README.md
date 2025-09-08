@@ -1,5 +1,5 @@
 <div align="center">
-
+<img src="public/banner.png"/>
 </div>
 
 # 🗺️ Pixel Travel Map
@@ -35,7 +35,10 @@ As you upload more photos, you gradually build your own **travel check-in map** 
 
 ## 🎥 Demo Video
 
-
+<p><b>Click the image to view the demo video</b></p>
+<div align="center">
+<a href="https://www.bilibili.com/video/BV11dYjzREGd/?spm_id_from=333.1387.homepage.video_card.click&vd_source=180b54ccdee7adafa153cde5e97d8245"><img src="public\demo.png" alt=""></a>
+</div>
 
 ---
 
@@ -61,4 +64,4 @@ npm run dev
 
 ## 💡 Acknowledgement
 
-This project was inspired by a [tweet](x.com/alexanderchen/status/1961169243199672648) from Alexander Chen.
+This project was inspired by a [tweet](https://x.com/alexanderchen/status/1961169243199672648) from Alexander Chen.
