@@ -1,20 +1,32 @@
-// @ts-ignore
-const PasskeySDK = (window as any).PasskeySDK;
-
 const PASSKEY_API_URL = import.meta.env.VITE_PASSKEY_API_URL || '';
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 class AuthService {
-  private sdk: PasskeySDK;
+  private sdk: any;
   private currentUser: any = null;
   private currentMapId: number | null = null;
 
   constructor() {
-    this.sdk = new PasskeySDK(PASSKEY_API_URL);
+    // Initialize SDK when window is available
+    if (typeof window !== 'undefined' && (window as any).PasskeySDK) {
+      this.sdk = new (window as any).PasskeySDK();
+    } else {
+      console.warn('PasskeySDK not available');
+    }
+  }
+  
+  private ensureSDK() {
+    if (!this.sdk && typeof window !== 'undefined' && (window as any).PasskeySDK) {
+      this.sdk = new (window as any).PasskeySDK();
+    }
+    if (!this.sdk) {
+      throw new Error('PasskeySDK not available. Please make sure the script is loaded.');
+    }
   }
 
   async register(username: string, email: string, displayName?: string) {
     try {
+      this.ensureSDK();
       const response = await this.sdk.register(username, displayName || username, email);
       if (response.token) {
         await this.syncUserData();
@@ -28,6 +40,7 @@ class AuthService {
 
   async login(username?: string) {
     try {
+      this.ensureSDK();
       const response = await this.sdk.login(username);
       if (response.token) {
         await this.syncUserData();
@@ -41,6 +54,7 @@ class AuthService {
 
   async logout() {
     try {
+      this.ensureSDK();
       await this.sdk.logout();
       this.currentUser = null;
       this.currentMapId = null;
@@ -79,6 +93,7 @@ class AuthService {
 
   async getProfile() {
     try {
+      this.ensureSDK();
       return await this.sdk.getProfile();
     } catch (error) {
       console.error('Get profile error:', error);
