@@ -11,7 +11,7 @@ RUN cd server && npm install --only=production
 
 # Copy and install frontend dependencies  
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
 # Copy all source files
 COPY . .
