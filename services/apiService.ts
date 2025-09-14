@@ -16,13 +16,19 @@ class ApiService {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    console.log('API Request:', `${API_URL}${endpoint}`, options.method || 'GET');
+
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
       headers
     });
 
+    console.log('API Response:', response.status, response.statusText);
+
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Request failed' }));
+      const errorText = await response.text();
+      console.error('API Error:', response.status, errorText);
+      const error = JSON.parse(errorText).catch(() => ({ error: 'Request failed' }));
       throw new Error(error.error || 'Request failed');
     }
 

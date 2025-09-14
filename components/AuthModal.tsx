@@ -28,8 +28,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
       if (mode === 'register') {
         await authService.register(username, email, displayName || username);
       } else {
-        await authService.login(username);
+        // For login, pass username only if provided (allows usernameless login)
+        await authService.login(username || undefined);
       }
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Authentication failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUsernamelessLogin = async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      await authService.login(); // No username - let browser show available credentials
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -49,15 +65,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-black mb-1">
-              {t('username')}
+              {t('username')} {mode === 'login' && `(${t('optional')})`}
             </label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full px-3 py-2 border border-black bg-white text-black focus:outline-none focus:bg-gray-50"
-              required
+              required={mode === 'register'}
               disabled={loading}
+              placeholder={mode === 'login' ? 'Leave empty to use any available passkey' : ''}
             />
           </div>
 
@@ -115,6 +132,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
               {t('cancel')}
             </button>
           </div>
+          
+          {mode === 'login' && (
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={handleUsernamelessLogin}
+                disabled={loading}
+                className="w-full px-4 py-3 border border-black bg-white text-black text-sm hover:bg-gray-100 disabled:opacity-50 transition-colors"
+              >
+                🔐 Sign In with Any Passkey
+              </button>
+            </div>
+          )}
         </form>
 
         <div className="mt-4 text-center">

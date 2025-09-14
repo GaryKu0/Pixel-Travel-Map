@@ -67,7 +67,12 @@ class AuthService {
   async syncUserData() {
     try {
       const token = this.getToken();
-      if (!token) return null;
+      if (!token) {
+        console.error('No token available for sync');
+        return null;
+      }
+
+      console.log('Syncing user data with API:', `${API_URL}/api/auth/sync`);
 
       const response = await fetch(`${API_URL}/api/auth/sync`, {
         method: 'POST',
@@ -77,11 +82,16 @@ class AuthService {
         }
       });
 
+      console.log('Sync response status:', response.status);
+
       if (!response.ok) {
-        throw new Error('Failed to sync user data');
+        const errorText = await response.text();
+        console.error('Sync failed:', response.status, errorText);
+        throw new Error(`Failed to sync user data: ${response.status} ${errorText}`);
       }
 
       const data = await response.json();
+      console.log('Sync successful:', data);
       this.currentUser = data.user;
       this.currentMapId = data.defaultMapId;
       return data;
