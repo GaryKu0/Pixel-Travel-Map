@@ -25,11 +25,18 @@ The app will be available at `http://localhost:8080` (or whatever PORT you set i
 
 Create a `.env` file based on `.env.example`:
 
+- `VITE_GEMINI_API_KEY`: Your Google Gemini API key for image generation (required)
 - `PORT`: The port to run the service on (default: 8080)
 - `PASSKEY_API_URL`: Your passkey authentication service URL
 - `VITE_PASSKEY_API_URL`: Same as above (needed for frontend)
 - `VITE_API_URL`: The API URL for frontend (usually same as your app URL)
 - `DB_PATH`: Path to SQLite database file (default: ./data/pixelmap.db)
+
+### Getting a Gemini API Key
+1. Go to [Google AI Studio](https://aistudio.google.com/apikey)
+2. Sign in with your Google account
+3. Create a new API key
+4. Add it to your `.env` file as `VITE_GEMINI_API_KEY`
 
 ## Using with Cloudflare Tunnel
 

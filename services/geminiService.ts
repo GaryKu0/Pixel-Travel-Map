@@ -14,10 +14,11 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 export const generateImageWithPrompt = async (imageFile: File, prompt: string): Promise<{ imageUrl: string | null; text: string | null; }> => {
-    if (!process.env.API_KEY) {
-        throw new Error("API_KEY environment variable not set. Please ensure it's configured.");
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) {
+        throw new Error("VITE_GEMINI_API_KEY environment variable not set. Please ensure it's configured in your .env file.");
     }
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey });
 
     const base64ImageData = await fileToBase64(imageFile);
     const mimeType = imageFile.type;
