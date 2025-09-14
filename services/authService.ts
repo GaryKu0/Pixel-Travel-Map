@@ -9,7 +9,7 @@ class AuthService {
   constructor() {
     // Initialize SDK when window is available
     if (typeof window !== 'undefined' && (window as any).PasskeySDK) {
-      this.sdk = new (window as any).PasskeySDK();
+      this.sdk = new (window as any).PasskeySDK(PASSKEY_API_URL);
     } else {
       console.warn('PasskeySDK not available');
     }
@@ -17,7 +17,7 @@ class AuthService {
   
   private ensureSDK() {
     if (!this.sdk && typeof window !== 'undefined' && (window as any).PasskeySDK) {
-      this.sdk = new (window as any).PasskeySDK();
+      this.sdk = new (window as any).PasskeySDK(PASSKEY_API_URL);
     }
     if (!this.sdk) {
       throw new Error('PasskeySDK not available. Please make sure the script is loaded.');
