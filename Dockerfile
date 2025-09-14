@@ -6,8 +6,8 @@ WORKDIR /app
 RUN apk add --no-cache sqlite python3 make g++
 
 # Copy and install backend dependencies
-COPY server/package*.json ./server/
-RUN cd server && npm ci --only=production
+COPY server/package.json ./server/
+RUN cd server && npm install --only=production
 
 # Copy and install frontend dependencies  
 COPY package*.json ./

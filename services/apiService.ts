@@ -1,6 +1,7 @@
 import authService from './authService';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+// Auto-detect API URL - same domain/port as frontend
+const API_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
 class ApiService {
   private async request(endpoint: string, options: RequestInit = {}) {
