@@ -40,22 +40,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-        <h2 className="text-2xl font-bold mb-4">
-          {mode === 'login' ? 'Sign In' : 'Create Account'}
+    <div className="fixed inset-0 bg-white/80 flex items-center justify-center z-50">
+      <div className="bg-white border border-black shadow-lg max-w-md w-full mx-4 p-6">
+        <h2 className="text-xl font-bold mb-4 text-black">
+          {mode === 'login' ? t('signIn') : t('createAccount')}
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Username
+            <label className="block text-sm font-medium text-black mb-1">
+              {t('username')}
             </label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-black bg-white text-black focus:outline-none focus:bg-gray-50"
               required
               disabled={loading}
             />
@@ -64,28 +64,28 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
           {mode === 'register' && (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
+                <label className="block text-sm font-medium text-black mb-1">
+                  {t('email')}
                 </label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-black bg-white text-black focus:outline-none focus:bg-gray-50"
                   required
                   disabled={loading}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Display Name (optional)
+                <label className="block text-sm font-medium text-black mb-1">
+                  {t('displayName')} ({t('optional')})
                 </label>
                 <input
                   type="text"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-black bg-white text-black focus:outline-none focus:bg-gray-50"
                   disabled={loading}
                 />
               </div>
@@ -93,7 +93,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
           )}
 
           {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
+            <div className="bg-white border border-black p-3 text-sm text-red-600">
               {error}
             </div>
           )}
@@ -102,17 +102,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-3 border border-black bg-black text-white text-sm hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? 'Processing...' : (mode === 'login' ? 'Sign In' : 'Register')}
+              {loading ? t('processing') : (mode === 'login' ? t('signIn') : t('register'))}
             </button>
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300 disabled:opacity-50"
+              className="flex-1 px-4 py-3 border border-black bg-white text-black text-sm hover:bg-gray-100 disabled:opacity-50 transition-colors"
             >
-              Cancel
+              {t('cancel')}
             </button>
           </div>
         </form>
@@ -123,17 +123,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
               setMode(mode === 'login' ? 'register' : 'login');
               setError('');
             }}
-            className="text-blue-600 hover:underline text-sm"
+            className="text-black hover:underline text-sm"
             disabled={loading}
           >
             {mode === 'login' 
-              ? "Don't have an account? Register" 
-              : 'Already have an account? Sign In'}
+              ? t('dontHaveAccount')
+              : t('alreadyHaveAccount')}
           </button>
         </div>
 
-        <div className="mt-4 text-xs text-gray-500 text-center">
-          This app uses passkey authentication for secure, passwordless login.
+        <div className="mt-4 text-xs text-gray-600 text-center">
+          {t('passkeyAuthInfo')}
         </div>
       </div>
     </div>

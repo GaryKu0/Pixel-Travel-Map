@@ -10,9 +10,13 @@ import { ImportConfirmModal } from './components/ImportConfirmModal';
 import { MemoryCards } from './components/MemoryCards';
 import { PhotoPreviewModal } from './components/PhotoPreviewModal';
 import { TravelLogModal } from './components/TravelLogModal';
+import { AuthModal } from './components/AuthModal';
 import { useLocalization } from './context/LocalizationContext';
 import { SearchControl } from './components/SearchControl';
 import { ClusterBubble, Cluster } from './components/ClusterBubble';
+import authService from './services/authService';
+import apiService from './services/apiService';
+import { processedImageToApi, apiToProcessedImage } from './utils/dataConverters';
 
 
 // --- TYPE DECLARATIONS for global libraries ---
@@ -298,6 +302,12 @@ const App: React.FC = () => {
   const [showLogModal, setShowLogModal] = useState(false);
   const memoryToAddPhotoTo = useRef<number | null>(null);
   const [isLoading, setIsLoading] = useState<{ active: boolean; message: string } | null>(null);
+  
+  // Authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [currentMapId, setCurrentMapId] = useState<number | null>(null);
 
   const mapRef = useRef<any | null>(null);
   const tileLayerRef = useRef<any | null>(null);
@@ -389,6 +399,30 @@ const App: React.FC = () => {
     }
   }, []);
   
+  // Authentication initialization
+  useEffect(() => {
+    const initAuth = async () => {
+      if (authService.isAuthenticated()) {
+        try {
+          const syncData = await authService.syncUserData();
+          setUser(syncData.user);
+          setCurrentMapId(syncData.defaultMapId);
+          setIsAuthenticated(true);
+          
+          // Load user's map data
+          await loadMapData(syncData.defaultMapId);
+        } catch (error) {
+          console.error('Auth sync failed:', error);
+          setShowAuthModal(true);
+        }
+      } else {
+        setShowAuthModal(true);
+      }
+    };
+    
+    initAuth();
+  }, []);
+  
   // Set tile layer
   useEffect(() => {
       if (!mapState.isReady || !mapRef.current) return;
@@ -410,6 +444,76 @@ const App: React.FC = () => {
 
   }, [mapState.isReady]);
 
+  // --- AUTHENTICATION FUNCTIONS ---
+  const loadMapData = useCallback(async (mapId: number) => {
+    if (!mapId) return;
+    
+    try {
+      setIsLoading({ active: true, message: t('loading') });
+      const { memories } = await apiService.getMap(mapId);
+      
+      const processedImages = await Promise.all(
+        memories.map((memory: any) => apiToProcessedImage(memory))
+      );
+      
+      setImages(processedImages);
+      nextId.current = Math.max(...processedImages.map(img => img.id), 0) + 1;
+    } catch (error) {
+      console.error('Failed to load map data:', error);
+      setToastMessage('Failed to load your travel memories');
+    } finally {
+      setIsLoading(null);
+    }
+  }, [t]);
+  
+  const handleAuthSuccess = useCallback(async () => {
+    const syncData = await authService.syncUserData();
+    setUser(syncData.user);
+    setCurrentMapId(syncData.defaultMapId);
+    setIsAuthenticated(true);
+    setShowAuthModal(false);
+    
+    await loadMapData(syncData.defaultMapId);
+  }, [loadMapData]);
+  
+  const handleLogout = useCallback(async () => {
+    try {
+      await authService.logout();
+      setIsAuthenticated(false);
+      setUser(null);
+      setCurrentMapId(null);
+      setImages([]);
+      setShowAuthModal(true);
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  }, []);
+
+  // --- API SAVE FUNCTIONS ---
+  const saveMemoryToApi = useCallback(async (image: ProcessedImage) => {
+    if (!currentMapId) return;
+    
+    try {
+      const apiData = await processedImageToApi(image, currentMapId);
+      await apiService.addMemory(apiData);
+    } catch (error) {
+      console.error('Failed to save memory:', error);
+      setToastMessage('Failed to save memory');
+    }
+  }, [currentMapId]);
+  
+  const updateMemoryInApi = useCallback(async (image: ProcessedImage) => {
+    if (!currentMapId) return;
+    
+    try {
+      const apiData = await processedImageToApi(image, currentMapId);
+      await apiService.updateMemory(image.id, apiData);
+    } catch (error) {
+      console.error('Failed to update memory:', error);
+      setToastMessage('Failed to update memory');
+    }
+  }, [currentMapId]);
+
   // --- IMAGE GENERATION & PLACEMENT ---
   const generateFromImage = useCallback(async (file: File, id: number, prompt: string) => {
     try {
@@ -423,7 +527,7 @@ const App: React.FC = () => {
         if (img.id !== id) return img;
         const newWidth = IMAGE_WIDTH;
         const newHeight = IMAGE_WIDTH / aspectRatio;
-        return {
+        const updatedImg = {
           ...img,
           processedImage: transparentImage,
           showOriginal: false,
@@ -431,7 +535,12 @@ const App: React.FC = () => {
           width: newWidth,
           height: newHeight,
           isGenerating: false,
-        }
+        };
+        
+        // Save to API when generation is complete
+        saveMemoryToApi(updatedImg).catch(console.error);
+        
+        return updatedImg;
       }));
     } catch (e) {
       console.error(e);
@@ -835,6 +944,7 @@ const App: React.FC = () => {
   
   const handleSaveLog = (updatedLog: LogData, newCoords: { lat: number, lng: number } | null) => {
       if (selectedImageId === null) return;
+      
       setImages(prev => prev.map(img => {
           if (img.id !== selectedImageId) return img;
           
@@ -843,7 +953,13 @@ const App: React.FC = () => {
               updates.lat = newCoords.lat;
               updates.lng = newCoords.lng;
           }
-          return { ...img, ...updates };
+          
+          const updatedImg = { ...img, ...updates };
+          
+          // Save to API
+          updateMemoryInApi(updatedImg).catch(console.error);
+          
+          return updatedImg;
       }));
       setShowLogModal(false);
   };
@@ -904,52 +1020,81 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedImageId, images, handleScaleSelected]);
 
-  const handleResetCanvas = () => {
-    setImages([]); setShowResetConfirm(false); mapRef.current?.setView([20,0], 2);
+  const handleResetCanvas = async () => {
+    if (!currentMapId) return;
+    
+    try {
+      // Clear all memories from the current map
+      for (const image of images) {
+        await apiService.deleteMemory(image.id);
+      }
+      
+      setImages([]);
+      setShowResetConfirm(false);
+      mapRef.current?.setView([20, 0], 2);
+      setToastMessage('Map reset successfully');
+    } catch (error) {
+      console.error('Failed to reset map:', error);
+      setToastMessage('Failed to reset map');
+    }
   };
   
   // --- EXPORT / IMPORT ---
   const handleExport = async () => {
-    if (images.length === 0) return;
+    if (!currentMapId || images.length === 0) return;
+    
     setIsLoading({ active: true, message: t('loadingExport') });
-    await ensureAudioContext(); synth.triggerAttackRelease('C5', '8n');
+    await ensureAudioContext();
+    synth.triggerAttackRelease('C5', '8n');
 
     try {
-        const serializableImages = await Promise.all(images.map(async (img) => {
-            const processedImageBase64 = img.processedImage ? imageElementToBase64(img.processedImage) : null;
-            
-            const photosData = await Promise.all(img.photos.map(async (photo) => ({
-                base64: await fileToBase64(photo.file),
-                name: photo.file.name,
-            })));
-
-            // Return a version of the object without non-serializable parts
-            const { processedImage, photos, sourceFile, ...rest } = img;
-            return {
-                ...rest,
-                processedImageBase64,
-                photos: photosData,
-            };
-        }));
-
-        const exportData = {
-            version: "1.0.0",
-            memories: serializableImages,
-        };
-
-        const jsonString = JSON.stringify(exportData, null, 2);
-        const blob = new Blob([jsonString], { type: 'application/json' });
+        const exportData = await apiService.exportMap(currentMapId);
+        
+        // Create and download file
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { 
+            type: 'application/json' 
+        });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'pixel-travel-map.pixmap';
+        a.download = `pixelmap-${new Date().toISOString().split('T')[0]}.pixmap`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+        
+        setToastMessage(t('exportMap') + ' completed!');
     } catch (error) {
-        console.error("Export failed:", error);
-        setToastMessage("Export failed.");
+        console.error('Export failed:', error);
+        setToastMessage('Export failed');
+    } finally {
+        setIsLoading(null);
+    }
+  };
+
+  const handleImportFile = async (file: File) => {
+    if (!currentMapId) return;
+    
+    setIsLoading({ active: true, message: t('loadingImport') });
+
+    try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        
+        if (!data.memories || !Array.isArray(data.memories)) {
+            throw new Error(t('errorInvalidFile'));
+        }
+        
+        // Import memories to current map
+        await apiService.importMap(currentMapId, data.memories, true); // Clear existing
+        
+        // Reload map data
+        await loadMapData(currentMapId);
+        
+        setToastMessage(t('importSuccess'));
+    } catch (error) {
+        console.error('Import failed:', error);
+        setToastMessage(t('errorInvalidFile'));
     } finally {
         setIsLoading(null);
     }
@@ -965,13 +1110,8 @@ const App: React.FC = () => {
         return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-        const content = event.target?.result as string;
-        setImportFileContent(content);
-        setShowImportConfirm(true);
-    };
-    reader.readAsText(file);
+    // Direct import with the new API-based function
+    handleImportFile(file);
     if (importInputRef.current) importInputRef.current.value = '';
   };
   
@@ -1125,10 +1265,24 @@ const App: React.FC = () => {
 
         <div className="absolute top-4 left-16 flex items-center gap-2 pointer-events-none z-20">
             <p className="text-lg text-black">{t('appName')}</p>
+            {isAuthenticated && user && (
+                <span className="text-sm text-black bg-white/80 px-2 py-1 border border-black">
+                    {user.username}
+                </span>
+            )}
             <button onClick={() => setShowHelpModal(true)} className="pointer-events-auto w-6 h-6 flex items-center justify-center border border-black rounded-full text-black bg-white/80" aria-label={t('showHelp')}>?</button>
             <button onClick={toggleLanguage} className="pointer-events-auto w-6 h-6 flex items-center justify-center border border-black rounded-full text-black bg-white/80" aria-label={t('toggleLanguage')}>
                 {language === 'en' ? '中' : 'EN'}
             </button>
+            {isAuthenticated ? (
+                <button onClick={handleLogout} className="pointer-events-auto px-3 py-1 text-sm border border-black text-black bg-white/80 hover:bg-gray-100" aria-label={t('signOut')}>
+                    {t('signOut')}
+                </button>
+            ) : (
+                <button onClick={() => setShowAuthModal(true)} className="pointer-events-auto px-3 py-1 text-sm border border-black text-white bg-black hover:bg-neutral-800" aria-label={t('signIn')}>
+                    {t('signIn')}
+                </button>
+            )}
         </div>
 
         {showHelpModal && (
@@ -1147,6 +1301,14 @@ const App: React.FC = () => {
         
         {showLogModal && selectedImage && (
             <TravelLogModal log={selectedImage.log} onSave={handleSaveLog} onClose={() => setShowLogModal(false)} />
+        )}
+        
+        {showAuthModal && (
+            <AuthModal 
+                isOpen={showAuthModal}
+                onClose={() => setShowAuthModal(false)}
+                onSuccess={handleAuthSuccess}
+            />
         )}
         
         {selectedImage && mapRef.current && !selectedImage.isLocked && (

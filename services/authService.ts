@@ -1,4 +1,5 @@
-import PasskeySDK from '../passkey-sdk.js';
+// @ts-ignore
+const PasskeySDK = (window as any).PasskeySDK;
 
 const PASSKEY_API_URL = import.meta.env.VITE_PASSKEY_API_URL || '';
 const API_URL = import.meta.env.VITE_API_URL || '';
