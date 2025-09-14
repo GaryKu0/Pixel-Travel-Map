@@ -8,9 +8,16 @@ const router = express.Router();
 router.post('/sync', verifyToken, async (req, res) => {
   try {
     const db = await getDb();
-    const { id, username, email, displayName } = req.user;
     
-    // Insert or update user
+    console.log('Sync: Received user data:', req.user);
+    
+    // Extract user data from the nested structure
+    const userData = req.user.user || req.user;
+    const { id, username, email, displayName } = userData;
+    
+    console.log('Sync: Extracted user fields:', { id, username, email, displayName });
+    
+    // Insert or update user (handle null values)
     await db.run(`
       INSERT INTO users (id, username, email, display_name)
       VALUES (?, ?, ?, ?)
@@ -19,7 +26,7 @@ router.post('/sync', verifyToken, async (req, res) => {
         email = excluded.email,
         display_name = excluded.display_name,
         updated_at = CURRENT_TIMESTAMP
-    `, [id, username, email, displayName || username]);
+    `, [id, username, email || null, displayName || username]);
     
     // Get or create default map for user
     let map = await db.get('SELECT * FROM maps WHERE user_id = ? ORDER BY created_at ASC LIMIT 1', [id]);

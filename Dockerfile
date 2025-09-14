@@ -25,5 +25,5 @@ RUN mkdir -p data uploads
 # Expose port
 EXPOSE 8080
 
-# Start the server
-CMD ["node", "server/src/index.js"]
+# Start the server with migration
+CMD ["sh", "-c", "cd server && node src/migrate.js && node src/index.js"]
