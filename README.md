@@ -6,7 +6,7 @@
 
 > ✨ An AI-powered interactive 「Travel Check-in Map」
 
-> 🇨🇳 查看中文版：[README.zh-CN.md](./README.zh-CN.md)
+> 查看中文版：[README.zh-TW.md](./README.zh-TW.md)
 
 ---
 
