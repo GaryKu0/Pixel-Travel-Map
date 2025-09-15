@@ -26,13 +26,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
 
     try {
       if (mode === 'register') {
-        await authService.register(username, email, displayName || username);
+        // Redirect to external passkey registration with captcha
+        window.open('https://passkey.okuso.uk/', '_blank');
+        onClose(); // Close the modal since we're redirecting
       } else {
         // For login, pass username only if provided (allows usernameless login)
         await authService.login(username || undefined);
+        onSuccess();
+        onClose();
       }
-      onSuccess();
-      onClose();
     } catch (err: any) {
       setError(err.message || 'Authentication failed');
     } finally {
@@ -62,78 +64,77 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
           {mode === 'login' ? t('signIn') : t('createAccount')}
         </h2>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-black mb-1">
-              {t('username')} {mode === 'login' && `(${t('optional')})`}
-            </label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-3 py-2 border border-black bg-white text-black focus:outline-none focus:bg-gray-50"
-              required={mode === 'register'}
-              disabled={loading}
-              placeholder={mode === 'login' ? 'Leave empty to use any available passkey' : ''}
-            />
-          </div>
-
-          {mode === 'register' && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-black mb-1">
-                  {t('email')}
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-3 py-2 border border-black bg-white text-black focus:outline-none focus:bg-gray-50"
-                  required
-                  disabled={loading}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-black mb-1">
-                  {t('displayName')} ({t('optional')})
-                </label>
-                <input
-                  type="text"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  className="w-full px-3 py-2 border border-black bg-white text-black focus:outline-none focus:bg-gray-50"
-                  disabled={loading}
-                />
-              </div>
-            </>
-          )}
-
-          {error && (
-            <div className="bg-white border border-black p-3 text-sm text-red-600">
-              {error}
+        {mode === 'register' ? (
+          <div className="space-y-4">
+            <div className="bg-gray-50 border border-black p-4 text-sm text-black">
+              <p className="mb-2">🔒 Registration requires completing a security verification.</p>
+              <p>You'll be redirected to our secure registration page with captcha protection.</p>
             </div>
-          )}
 
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 px-4 py-3 border border-black bg-black text-white text-sm hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? t('processing') : (mode === 'login' ? t('signIn') : t('register'))}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="flex-1 px-4 py-3 border border-black bg-white text-black text-sm hover:bg-gray-100 disabled:opacity-50 transition-colors"
-            >
-              {t('cancel')}
-            </button>
+            {error && (
+              <div className="bg-white border border-black p-3 text-sm text-red-600">
+                {error}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleSubmit}
+                disabled={loading}
+                className="flex-1 px-4 py-3 border border-black bg-black text-white text-sm hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {t('register')} →
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={loading}
+                className="flex-1 px-4 py-3 border border-black bg-white text-black text-sm hover:bg-gray-100 disabled:opacity-50 transition-colors"
+              >
+                {t('cancel')}
+              </button>
+            </div>
           </div>
-          
-          {mode === 'login' && (
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-black mb-1">
+                {t('username')} ({t('optional')})
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full px-3 py-2 border border-black bg-white text-black focus:outline-none focus:bg-gray-50"
+                disabled={loading}
+                placeholder="Leave empty to use any available passkey"
+              />
+            </div>
+
+            {error && (
+              <div className="bg-white border border-black p-3 text-sm text-red-600">
+                {error}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex-1 px-4 py-3 border border-black bg-black text-white text-sm hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {loading ? t('processing') : t('signIn')}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={loading}
+                className="flex-1 px-4 py-3 border border-black bg-white text-black text-sm hover:bg-gray-100 disabled:opacity-50 transition-colors"
+              >
+                {t('cancel')}
+              </button>
+            </div>
+
             <div className="mt-4">
               <button
                 type="button"
@@ -144,8 +145,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                 🔐 Sign In with Any Passkey
               </button>
             </div>
-          )}
-        </form>
+          </form>
+        )}
 
         <div className="mt-4 text-center">
           <button

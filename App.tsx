@@ -11,6 +11,7 @@ import { MemoryCards } from './components/MemoryCards';
 import { PhotoPreviewModal } from './components/PhotoPreviewModal';
 import { TravelLogModal } from './components/TravelLogModal';
 import { AuthModal } from './components/AuthModal';
+import { SettingsModal } from './components/SettingsModal';
 import { useLocalization } from './context/LocalizationContext';
 import { SearchControl } from './components/SearchControl';
 import { ClusterBubble, Cluster } from './components/ClusterBubble';
@@ -44,8 +45,15 @@ const ensureAudioContext = async () => {
 
 // --- PROMPT DEFINITIONS ---
 const PROMPT_STYLE_GUIDANCE = "The style must be 3D isometric pixel art. The object must be isolated on a plain white background with no shadows. Do not include any explanatory text in the response; output only the final image.";
-const IMAGE_PROMPT = `From the provided image, create a 3D isometric pixel art version of the key object or building. ${PROMPT_STYLE_GUIDANCE}`;
-const EDIT_PROMPT_TEMPLATE = (input: string) => `${input}. ${PROMPT_STYLE_GUIDANCE}`;
+const IMAGE_PROMPT_WITH_LOCATION = (location?: string) => {
+    const locationContext = location ? `This photo was taken in ${location}. ` : '';
+    return `From the provided image, create a 3D isometric pixel art version of the key object or building. ${locationContext}Consider the local architectural style and cultural elements when creating the pixel art. ${PROMPT_STYLE_GUIDANCE}`;
+};
+const IMAGE_PROMPT = IMAGE_PROMPT_WITH_LOCATION(); // Default without location
+const EDIT_PROMPT_TEMPLATE = (input: string, location?: string) => {
+    const locationContext = location ? `This is located in ${location}. ` : '';
+    return `${input}. ${locationContext}${PROMPT_STYLE_GUIDANCE}`;
+};
 
 
 const IMAGE_WIDTH = 120; 
@@ -296,6 +304,7 @@ const App: React.FC = () => {
   const [showImportConfirm, setShowImportConfirm] = useState(false);
   const [importFileContent, setImportFileContent] = useState<string | null>(null);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [placementInfo, setPlacementInfo] = useState<{file: File} | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [photoPreviewState, setPhotoPreviewState] = useState<PhotoPreviewState | null>(null);
@@ -308,6 +317,7 @@ const App: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [currentMapId, setCurrentMapId] = useState<number | null>(null);
+  const currentMapIdRef = useRef<number | null>(null);
 
   const mapRef = useRef<any | null>(null);
   const tileLayerRef = useRef<any | null>(null);
@@ -393,7 +403,7 @@ const App: React.FC = () => {
       const updateMapState = () => setMapState(prev => ({...prev}));
       map.on('move', updateMapState);
       map.on('zoom', updateMapState);
-      
+
       mapRef.current = map;
       setMapState({ isReady: true });
     }
@@ -406,11 +416,15 @@ const App: React.FC = () => {
         try {
           const syncData = await authService.syncUserData();
           setUser(syncData.user);
-          setCurrentMapId(syncData.defaultMapId);
           setIsAuthenticated(true);
-          
-          // Load user's map data
-          await loadMapData(syncData.defaultMapId);
+
+          if (syncData.defaultMapId) {
+            setCurrentMapId(syncData.defaultMapId);
+            currentMapIdRef.current = syncData.defaultMapId;
+            await loadMapData(syncData.defaultMapId);
+          } else {
+            console.warn('No defaultMapId returned from sync');
+          }
         } catch (error) {
           console.error('Auth sync failed:', error);
           setShowAuthModal(true);
@@ -419,7 +433,7 @@ const App: React.FC = () => {
         setShowAuthModal(true);
       }
     };
-    
+
     initAuth();
   }, []);
   
@@ -446,22 +460,35 @@ const App: React.FC = () => {
 
   // --- AUTHENTICATION FUNCTIONS ---
   const loadMapData = useCallback(async (mapId: number) => {
-    if (!mapId) return;
-    
+    if (!mapId) {
+      console.warn('No mapId provided to loadMapData');
+      return;
+    }
+
+    console.log('Loading map data for mapId:', mapId);
+
     try {
       setIsLoading({ active: true, message: t('loading') });
-      const { memories } = await apiService.getMap(mapId);
-      
+      console.log('Fetching map data from API...');
+      const mapResponse = await apiService.getMap(mapId);
+      console.log('Map response received:', mapResponse);
+
+      const { memories } = mapResponse;
+      console.log('Processing', memories.length, 'memories');
+
       const processedImages = await Promise.all(
         memories.map((memory: any) => apiToProcessedImage(memory))
       );
-      
+
+      console.log('Processed images:', processedImages.length);
       setImages(processedImages);
       nextId.current = Math.max(...processedImages.map(img => img.id), 0) + 1;
+      console.log('Map data loaded successfully');
     } catch (error) {
       console.error('Failed to load map data:', error);
       setToastMessage('Failed to load your travel memories');
     } finally {
+      console.log('Clearing loading state');
       setIsLoading(null);
     }
   }, [t]);
@@ -470,9 +497,10 @@ const App: React.FC = () => {
     const syncData = await authService.syncUserData();
     setUser(syncData.user);
     setCurrentMapId(syncData.defaultMapId);
+    currentMapIdRef.current = syncData.defaultMapId;
     setIsAuthenticated(true);
     setShowAuthModal(false);
-    
+
     await loadMapData(syncData.defaultMapId);
   }, [loadMapData]);
   
@@ -482,6 +510,7 @@ const App: React.FC = () => {
       setIsAuthenticated(false);
       setUser(null);
       setCurrentMapId(null);
+      currentMapIdRef.current = null;
       setImages([]);
       setShowAuthModal(true);
     } catch (error) {
@@ -491,16 +520,23 @@ const App: React.FC = () => {
 
   // --- API SAVE FUNCTIONS ---
   const saveMemoryToApi = useCallback(async (image: ProcessedImage) => {
-    if (!currentMapId) return;
-    
+    const mapId = currentMapIdRef.current;
+    if (!mapId) {
+      console.warn('No currentMapId, cannot save memory');
+      return;
+    }
+
+    console.log('Saving memory to API:', image.id, 'mapId:', mapId);
     try {
-      const apiData = await processedImageToApi(image, currentMapId);
-      await apiService.addMemory(apiData);
+      const apiData = await processedImageToApi(image, mapId);
+      console.log('API data prepared:', apiData);
+      const result = await apiService.addMemory(apiData);
+      console.log('Memory saved successfully:', result);
     } catch (error) {
       console.error('Failed to save memory:', error);
       setToastMessage('Failed to save memory');
     }
-  }, [currentMapId]);
+  }, []);
   
   const updateMemoryInApi = useCallback(async (image: ProcessedImage) => {
     if (!currentMapId) return;
@@ -515,11 +551,11 @@ const App: React.FC = () => {
   }, [currentMapId]);
 
   // --- IMAGE GENERATION & PLACEMENT ---
-  const generateFromImage = useCallback(async (file: File, id: number, prompt: string) => {
+  const generateFromImage = useCallback(async (file: File, id: number, prompt: string, isRegenerate: boolean = false, location?: string) => {
     try {
       const { imageUrl } = await generateImageWithPrompt(file, prompt);
       if (!imageUrl) throw new Error("Generation failed, no image returned.");
-      
+
       const { transparentImage, contentBounds } = await processImageForTransparency(imageUrl);
       const aspectRatio = transparentImage.width / transparentImage.height;
 
@@ -536,17 +572,25 @@ const App: React.FC = () => {
           height: newHeight,
           isGenerating: false,
         };
-        
+
         // Save to API when generation is complete
-        saveMemoryToApi(updatedImg).catch(console.error);
-        
+        // For regeneration, use update; for new images, use save
+        if (isRegenerate) {
+          updateMemoryInApi(updatedImg).catch(console.error);
+        } else {
+          saveMemoryToApi(updatedImg).catch(console.error);
+        }
+
         return updatedImg;
       }));
     } catch (e) {
-      console.error(e);
-      setImages(prev => prev.filter(img => img.id !== id));
+      console.error('Generation failed:', e);
+      // On error, reset the isGenerating flag
+      setImages(prev => prev.map(img =>
+        img.id === id ? { ...img, isGenerating: false } : img
+      ));
     }
-  }, []);
+  }, [saveMemoryToApi, updateMemoryInApi]);
 
   const addImageAtLatLng = useCallback((file: File, latlng: {lat: number, lng: number}, logInfo: {location: string, date: string}) => {
     (async () => {
@@ -575,7 +619,8 @@ const App: React.FC = () => {
         }
     };
     setImages(prev => [...prev, newImage]);
-    generateFromImage(file, id, IMAGE_PROMPT);
+    const locationPrompt = IMAGE_PROMPT_WITH_LOCATION(logInfo.location);
+    generateFromImage(file, id, locationPrompt, false, logInfo.location);
     return id; // Return synchronously
   }, [generateFromImage]);
   
@@ -851,15 +896,29 @@ const App: React.FC = () => {
     if (!selectedImage) return;
     await ensureAudioContext();
     synth.triggerAttackRelease('A4', '8n');
-    setImages(prev => prev.filter(img => img.id !== selectedImageId));
-    setSelectedImageId(null);
+
+    try {
+      // Delete from database via API
+      await apiService.deleteMemory(selectedImage.id);
+
+      // Remove from React state
+      setImages(prev => prev.filter(img => img.id !== selectedImageId));
+      setSelectedImageId(null);
+    } catch (error) {
+      console.error('Failed to delete memory:', error);
+      // Still remove from state even if API fails, user can refresh to see actual state
+      setImages(prev => prev.filter(img => img.id !== selectedImageId));
+      setSelectedImageId(null);
+    }
   };
 
   const handleRegenerateSelected = () => {
       if (!selectedImage) return;
       setImages(prev => prev.map(img => img.id === selectedImageId ? {...img, isGenerating: true } : img));
       if (selectedImage.sourceFile) {
-          generateFromImage(selectedImage.sourceFile, selectedImage.id, IMAGE_PROMPT);
+          const location = selectedImage.log?.location;
+          const locationPrompt = IMAGE_PROMPT_WITH_LOCATION(location);
+          generateFromImage(selectedImage.sourceFile, selectedImage.id, locationPrompt, true, location);
       }
   };
 
@@ -868,8 +927,9 @@ const App: React.FC = () => {
     await ensureAudioContext(); synth.triggerAttackRelease('E4', '8n');
     const imageFile = await imageElementToFile(selectedImage.processedImage, `edit_source_${selectedImage.id}.png`);
     setImages(prev => prev.map(img => img.id === selectedImageId ? { ...img, isGenerating: true, sourceFile: imageFile } : img));
-    const finalPrompt = EDIT_PROMPT_TEMPLATE(prompt);
-    generateFromImage(imageFile, selectedImage.id, finalPrompt);
+    const location = selectedImage.log?.location;
+    const finalPrompt = EDIT_PROMPT_TEMPLATE(prompt, location);
+    generateFromImage(imageFile, selectedImage.id, finalPrompt, true, location);
   };
 
   const handleFlipSelected = async () => {
@@ -1242,10 +1302,10 @@ const App: React.FC = () => {
         )}
 
         {images.length === 0 && !placementInfo && !isLoading && (
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none p-4 z-20">
-            <h1 className="text-2xl font-bold text-black mb-4">{t('welcomeTitle')}</h1>
-            <p className="text-neutral-600">{t('welcomeSubtitle')}</p>
-            <p className="text-neutral-500 text-sm mt-2">{t('welcomeInstructions')}</p>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none p-4 z-20 max-w-[90vw]">
+            <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-black mb-2 sm:mb-4">{t('welcomeTitle')}</h1>
+            <p className="text-sm sm:text-base text-neutral-600 mb-1 sm:mb-2">{t('welcomeSubtitle')}</p>
+            <p className="text-xs sm:text-sm text-neutral-500">{t('welcomeInstructions')}</p>
           </div>
         )}
         
@@ -1263,23 +1323,24 @@ const App: React.FC = () => {
             </div>
         )}
 
-        <div className="absolute top-4 left-16 flex items-center gap-2 pointer-events-none z-20">
-            <p className="text-lg text-black">{t('appName')}</p>
+        <div className="absolute top-2 sm:top-4 left-2 sm:left-16 right-2 sm:right-auto flex flex-wrap sm:flex-nowrap items-center gap-1 sm:gap-2 pointer-events-none z-20">
+            <p className="text-sm sm:text-lg text-black mr-auto sm:mr-0">{t('appName')}</p>
             {isAuthenticated && user && (
-                <span className="text-sm text-black bg-white/80 px-2 py-1 border border-black">
+                <span className="text-xs sm:text-sm text-black bg-white/80 px-1 sm:px-2 py-0.5 sm:py-1 border border-black">
                     {user.username}
                 </span>
             )}
-            <button onClick={() => setShowHelpModal(true)} className="pointer-events-auto w-6 h-6 flex items-center justify-center border border-black rounded-full text-black bg-white/80" aria-label={t('showHelp')}>?</button>
-            <button onClick={toggleLanguage} className="pointer-events-auto w-6 h-6 flex items-center justify-center border border-black rounded-full text-black bg-white/80" aria-label={t('toggleLanguage')}>
-                {language === 'en' ? '中' : 'EN'}
+            <button onClick={() => setShowHelpModal(true)} className="pointer-events-auto w-6 h-6 sm:w-6 sm:h-6 flex items-center justify-center border border-black rounded-full text-black bg-white/80 text-xs" aria-label={t('showHelp')}>?</button>
+            <button onClick={() => setShowSettingsModal(true)} className="pointer-events-auto w-6 h-6 sm:w-6 sm:h-6 flex items-center justify-center border border-black rounded-full text-black bg-white/80 text-xs" aria-label="Settings">⚙️</button>
+            <button onClick={toggleLanguage} className="pointer-events-auto w-6 h-6 sm:w-6 sm:h-6 flex items-center justify-center border border-black rounded-full text-black bg-white/80 text-xs" aria-label={t('toggleLanguage')}>
+                {language === 'en' ? '繁' : 'EN'}
             </button>
             {isAuthenticated ? (
-                <button onClick={handleLogout} className="pointer-events-auto px-3 py-1 text-sm border border-black text-black bg-white/80 hover:bg-gray-100" aria-label={t('signOut')}>
+                <button onClick={handleLogout} className="pointer-events-auto px-2 sm:px-3 py-0.5 sm:py-1 text-xs sm:text-sm border border-black text-black bg-white/80 hover:bg-gray-100" aria-label={t('signOut')}>
                     {t('signOut')}
                 </button>
             ) : (
-                <button onClick={() => setShowAuthModal(true)} className="pointer-events-auto px-3 py-1 text-sm border border-black text-white bg-black hover:bg-neutral-800" aria-label={t('signIn')}>
+                <button onClick={() => setShowAuthModal(true)} className="pointer-events-auto px-2 sm:px-3 py-0.5 sm:py-1 text-xs sm:text-sm border border-black text-white bg-black hover:bg-neutral-800" aria-label={t('signIn')}>
                     {t('signIn')}
                 </button>
             )}
@@ -1287,6 +1348,9 @@ const App: React.FC = () => {
 
         {showHelpModal && (
             <HelpModal onClose={() => setShowHelpModal(false)} />
+        )}
+        {showSettingsModal && (
+            <SettingsModal isOpen={showSettingsModal} onClose={() => setShowSettingsModal(false)} />
         )}
 
         {photoPreviewState && (
@@ -1337,23 +1401,23 @@ const App: React.FC = () => {
             />
         )}
        
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex justify-center z-20">
-            <div className="flex flex-nowrap justify-center gap-2 p-2 rounded-none">
-                <button type="button" onClick={() => fileInputRef.current?.click()} className="h-12 box-border flex-shrink-0 px-4 py-3 border border-black bg-black text-white text-sm flex items-center justify-center gap-2 hover:bg-neutral-800 transition-colors" aria-label={t('addMemory')}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-                    {t('addMemory')}
+        <div className="absolute bottom-2 sm:bottom-4 left-2 right-2 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 flex justify-center z-20">
+            <div className="flex flex-row gap-1 sm:gap-2 p-1 sm:p-2 rounded-none w-full sm:w-auto justify-center">
+                <button type="button" onClick={() => fileInputRef.current?.click()} className="h-10 sm:h-12 flex-1 sm:flex-initial px-2 sm:px-4 py-2 sm:py-3 border border-black bg-black text-white text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-2 hover:bg-neutral-800 transition-colors" aria-label={t('addMemory')}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" className="sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                    <span className="hidden min-[400px]:inline">{t('addMemory')}</span>
                 </button>
-                <button onClick={() => importInputRef.current?.click()} className="h-12 box-border flex-shrink-0 px-4 py-3 border border-black bg-white/80 text-black text-sm flex items-center justify-center gap-2 hover:bg-gray-100" aria-label={t('importMap')}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path></svg>
-                    {t('importMap')}
+                <button onClick={() => importInputRef.current?.click()} className="h-10 sm:h-12 flex-1 sm:flex-initial px-2 sm:px-4 py-2 sm:py-3 border border-black bg-white/80 text-black text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-2 hover:bg-gray-100" aria-label={t('importMap')}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" className="sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path></svg>
+                    <span className="hidden min-[400px]:inline">{t('importMap')}</span>
                 </button>
-                <button onClick={handleExport} className="h-12 box-border flex-shrink-0 px-4 py-3 border border-black bg-white/80 text-black text-sm flex items-center justify-center gap-2 hover:bg-gray-100" aria-label={t('exportMap')}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-                    {t('exportMap')}
+                <button onClick={handleExport} className="h-10 sm:h-12 flex-1 sm:flex-initial px-2 sm:px-4 py-2 sm:py-3 border border-black bg-white/80 text-black text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-2 hover:bg-gray-100" aria-label={t('exportMap')}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" className="sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                    <span className="hidden min-[400px]:inline">{t('exportMap')}</span>
                 </button>
-                <button onClick={() => setShowResetConfirm(true)} className="h-12 box-border flex-shrink-0 px-4 py-3 border border-black bg-white/80 text-black text-sm flex items-center justify-center gap-1 hover:bg-gray-100" aria-label={t('resetMap')}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                    {t('reset')}
+                <button onClick={() => setShowResetConfirm(true)} className="h-10 sm:h-12 flex-1 sm:flex-initial px-2 sm:px-4 py-2 sm:py-3 border border-black bg-white/80 text-black text-xs sm:text-sm flex items-center justify-center gap-1 hover:bg-gray-100" aria-label={t('resetMap')}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" className="sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    <span className="hidden min-[400px]:inline">{t('reset')}</span>
                 </button>
             </div>
         </div>

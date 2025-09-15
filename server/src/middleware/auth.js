@@ -42,7 +42,9 @@ export async function verifyToken(req, res, next) {
     
     const userData = await response.json();
     console.log('Auth middleware: User data received:', userData);
-    req.user = userData;
+
+    // Normalize user data structure (passkey API returns { user: {...} })
+    req.user = userData.user || userData;
     next();
   } catch (error) {
     console.error('Auth verification error:', error);

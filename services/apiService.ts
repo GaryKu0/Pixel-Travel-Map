@@ -28,7 +28,12 @@ class ApiService {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('API Error:', response.status, errorText);
-      const error = JSON.parse(errorText).catch(() => ({ error: 'Request failed' }));
+      let error: { error: string };
+      try {
+        error = JSON.parse(errorText);
+      } catch {
+        error = { error: 'Request failed' };
+      }
       throw new Error(error.error || 'Request failed');
     }
 

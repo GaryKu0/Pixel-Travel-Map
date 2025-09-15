@@ -1,6 +1,7 @@
 import express from 'express';
 import { getDb } from '../database.js';
 import { verifyToken } from '../middleware/auth.js';
+import imageService from '../services/imageService.js';
 
 const router = express.Router();
 
@@ -32,10 +33,23 @@ router.post('/', verifyToken, async (req, res) => {
       return res.status(404).json({ error: 'Map not found' });
     }
     
-    const contentBoundsStr = typeof content_bounds === 'string' 
-      ? content_bounds 
+    const contentBoundsStr = typeof content_bounds === 'string'
+      ? content_bounds
       : JSON.stringify(content_bounds);
-    
+
+    // Upload processed image to PicSur if available
+    let processedImageUrl = processed_image;
+    if (processed_image && imageService.isConfigured()) {
+      try {
+        console.log('Uploading processed image to PicSur...');
+        processedImageUrl = await imageService.uploadBase64Image(processed_image, `memory-${Date.now()}.jpg`);
+        console.log('Image uploaded to PicSur:', processedImageUrl);
+      } catch (error) {
+        console.error('Failed to upload to PicSur, storing as base64:', error);
+        // Fall back to base64 storage if PicSur fails
+      }
+    }
+
     const result = await db.run(`
       INSERT INTO memories (
         map_id, source_type, source_data, processed_image,
@@ -47,14 +61,14 @@ router.post('/', verifyToken, async (req, res) => {
       map_id,
       source_type,
       source_data,
-      processed_image,
+      processedImageUrl,
       lat,
       lng,
       width || 120,
       height || 120,
       contentBoundsStr,
-      flipped_horizontally || 0,
-      is_locked || 0,
+      flipped_horizontally ? 1 : 0,
+      is_locked ? 1 : 0,
       log_location || '',
       log_date || '',
       log_musings || ''
@@ -113,6 +127,9 @@ router.put('/:memoryId', verifyToken, async (req, res) => {
           values.push(typeof req.body[field] === 'string' 
             ? req.body[field] 
             : JSON.stringify(req.body[field]));
+        } else if (field === 'flipped_horizontally' || field === 'is_locked') {
+          updates.push(`${field} = ?`);
+          values.push(req.body[field] ? 1 : 0);
         } else {
           updates.push(`${field} = ?`);
           values.push(req.body[field]);

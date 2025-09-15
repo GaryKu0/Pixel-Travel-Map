@@ -72,13 +72,28 @@ export async function processedImageToApi(image: ProcessedImage, mapId: number) 
 
 // Convert API response to ProcessedImage format
 export async function apiToProcessedImage(data: any): Promise<ProcessedImage> {
+  console.log('Processing memory data:', { id: data.id, hasProcessedImage: !!data.processed_image });
+
   let processedImg: HTMLImageElement | null = null;
-  
+
   if (data.processed_image) {
+    console.log('Loading processed image...');
     processedImg = new Image();
     processedImg.src = data.processed_image;
-    await new Promise((resolve) => {
-      processedImg!.onload = resolve;
+    await new Promise((resolve, reject) => {
+      processedImg!.onload = () => {
+        console.log('Image loaded successfully');
+        resolve(null);
+      };
+      processedImg!.onerror = () => {
+        console.warn('Failed to load processed image:', data.processed_image);
+        resolve(null); // Continue with null image instead of failing
+      };
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        console.warn('Image load timeout for:', data.processed_image);
+        resolve(null);
+      }, 10000);
     });
   }
   

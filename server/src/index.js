@@ -37,6 +37,11 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Test endpoint (prevent 404 errors from third-party scripts)
+app.get('/test', (req, res) => {
+  res.json({ status: 'ok', message: 'Test endpoint working' });
+});
+
 // Catch all route - serve index.html for client-side routing
 app.get('*', (req, res) => {
   res.sendFile(join(__dirname, '../../dist/index.html'));

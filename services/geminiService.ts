@@ -14,10 +14,37 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 export const generateImageWithPrompt = async (imageFile: File, prompt: string): Promise<{ imageUrl: string | null; text: string | null; }> => {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
-        throw new Error("VITE_GEMINI_API_KEY environment variable not set. Please ensure it's configured in your .env file.");
+    // Check if dev mode is enabled
+    const devMode = (import.meta as any).env.VITE_DEV_MODE === 'true';
+    if (devMode) {
+        console.log('DEV MODE: Skipping Gemini API call, returning placeholder');
+        // Return a placeholder image URL (you can replace with any test image)
+        return {
+            imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwIiBoZWlnaHQ9IjEyMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTIwIiBoZWlnaHQ9IjEyMCIgZmlsbD0iIzMzNzNkYyIvPjx0ZXh0IHg9IjYwIiB5PSI2MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkRFViBNT0RFPC90ZXh0Pjwvc3ZnPg==',
+            text: null
+        };
     }
+
+    // Check for user's personal API key first, then fall back to environment variable
+    let apiKey = localStorage.getItem('gemini_api_key');
+    const usingServerKey = !apiKey;
+
+    if (!apiKey) {
+        // Fall back to environment variable
+        apiKey = (import.meta as any).env.VITE_GEMINI_API_KEY;
+        if (!apiKey) {
+            throw new Error("Gemini API key not found. Please provide your own API key in Settings or contact the administrator.");
+        }
+    }
+
+    // If using server's API key, require authentication
+    if (usingServerKey) {
+        const token = localStorage.getItem('passkey_auth_token');
+        if (!token) {
+            throw new Error("Authentication required. Please log in to use the server's AI service, or provide your own API key in Settings.");
+        }
+    }
+
     const ai = new GoogleGenAI({ apiKey });
 
     const base64ImageData = await fileToBase64(imageFile);

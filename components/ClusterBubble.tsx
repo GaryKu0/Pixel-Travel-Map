@@ -16,7 +16,7 @@ interface ClusterBubbleProps {
   onClick: (cluster: Cluster) => void;
 }
 
-export const ClusterBubble: React.FC<ClusterBubbleProps> = ({ cluster, map, onClick }) => {
+export const ClusterBubble: React.FC<ClusterBubbleProps> = React.memo(({ cluster, map, onClick }) => {
   const screenPoint = map.latLngToContainerPoint([cluster.lat, cluster.lng]);
   const representativeImage = cluster.representativeImage.processedImage;
   const SIZE = 80;
@@ -28,7 +28,7 @@ export const ClusterBubble: React.FC<ClusterBubbleProps> = ({ cluster, map, onCl
 
   return (
       <div
-          className="absolute flex items-center justify-center pointer-events-auto cursor-pointer group transition-transform duration-200 hover:scale-110"
+          className="absolute flex items-center justify-center pointer-events-auto cursor-pointer group hover:scale-110"
           style={{
               left: 0,
               top: 0,
@@ -36,6 +36,7 @@ export const ClusterBubble: React.FC<ClusterBubbleProps> = ({ cluster, map, onCl
               height: `${SIZE}px`,
               transform: `translate(${screenPoint.x - SIZE / 2}px, ${screenPoint.y - SIZE / 2}px)`,
               willChange: 'transform',
+              transition: 'transform 0.1s cubic-bezier(0.4, 0.0, 0.2, 1), scale 0.2s ease-out',
           }}
           onClick={handleClick}
       >
@@ -57,4 +58,4 @@ export const ClusterBubble: React.FC<ClusterBubbleProps> = ({ cluster, map, onCl
           </div>
       </div>
   );
-}
+});

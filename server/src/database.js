@@ -1,5 +1,4 @@
-import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
+import Database from 'better-sqlite3';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import fs from 'fs';
@@ -9,22 +8,33 @@ const __dirname = dirname(__filename);
 
 let db = null;
 
-export async function getDb() {
-  if (!db) {
+export async function getDb(forceReconnect = false) {
+  if (!db || forceReconnect) {
+    if (db && forceReconnect) {
+      db.close();
+      db = null;
+    }
+
     const dbPath = process.env.DB_PATH || join(__dirname, '..', 'db', 'pixelmap.db');
     const dbDir = dirname(dbPath);
-    
+
     // Ensure database directory exists
     if (!fs.existsSync(dbDir)) {
       fs.mkdirSync(dbDir, { recursive: true });
     }
-    
-    db = await open({
-      filename: dbPath,
-      driver: sqlite3.Database
-    });
-    
-    await db.exec('PRAGMA foreign_keys = ON');
+
+    db = new Database(dbPath);
+    db.pragma('foreign_keys = ON');
+
+    // Add wrapper methods to match sqlite interface
+    const originalExec = db.exec.bind(db);
+    db.get = (sql, params = []) => db.prepare(sql).get(params);
+    db.all = (sql, params = []) => db.prepare(sql).all(params);
+    db.run = (sql, params = []) => {
+      const result = db.prepare(sql).run(params);
+      return { lastID: result.lastInsertRowid, changes: result.changes };
+    };
+    db.exec = originalExec;
   }
   return db;
 }

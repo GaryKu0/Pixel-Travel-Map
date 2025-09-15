@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Pixel Travel Map</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -24,6 +24,21 @@
       body {
         font-family: 'Space Mono', monospace;
         overflow: hidden; /* Prevent scrollbars */
+        touch-action: pan-x pan-y; /* Prevent pinch zoom */
+        -webkit-user-select: none; /* Prevent text selection */
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+      }
+
+      /* Prevent zoom on all elements */
+      * {
+        touch-action: manipulation;
+      }
+
+      /* Allow map to have its own touch controls */
+      #map {
+        touch-action: none;
       }
       .leaflet-control-attribution {
         display: none !important; /* Hide for a cleaner prototype look */
@@ -36,6 +51,28 @@
         animation: fadeInOut 5s ease-in-out forwards;
       }
     </style>
+
+    <script>
+      // Prevent browser zoom with keyboard shortcuts
+      document.addEventListener('keydown', function(e) {
+        // Prevent Ctrl + or Ctrl - or Ctrl 0 (zoom shortcuts)
+        if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '0')) {
+          e.preventDefault();
+        }
+      });
+
+      // Prevent context menu and zoom gestures
+      document.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+      });
+
+      // Prevent wheel zoom when not on map
+      document.addEventListener('wheel', function(e) {
+        if (e.ctrlKey) {
+          e.preventDefault();
+        }
+      }, { passive: false });
+    </script>
 <script type="importmap">
 {
   "imports": {

@@ -22,7 +22,7 @@ const Card: React.FC<{
     return (
         <button
             onClick={onClick}
-            className="w-14 h-14 bg-white border border-black shadow-md flex items-center justify-center transition-all duration-300 ease-in-out origin-bottom hover:!scale-110 hover:!z-20 hover:-translate-y-2"
+            className="w-16 h-16 sm:w-14 sm:h-14 bg-white border border-black shadow-md flex items-center justify-center transition-all duration-300 ease-in-out origin-bottom hover:!scale-110 hover:!z-20 hover:-translate-y-2 active:!scale-105"
             style={{ transform: `rotate(${rotation}deg) scale(1)`}}
             aria-label={ariaLabel}
         >

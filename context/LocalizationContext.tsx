@@ -14,7 +14,7 @@ export const LocalizationProvider: React.FC<{ children: ReactNode }> = ({ childr
     const [language, setLanguage] = useState<Language>('en');
 
     const toggleLanguage = useCallback(() => {
-        setLanguage(prevLang => (prevLang === 'en' ? 'zh' : 'en'));
+        setLanguage(prevLang => (prevLang === 'en' ? 'zh-TW' : 'en'));
     }, []);
 
     const t = useCallback((key: string, options?: { [key: string]: string | number }): string => {

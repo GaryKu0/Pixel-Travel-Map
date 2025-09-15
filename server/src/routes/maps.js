@@ -21,10 +21,9 @@ router.get('/:mapId', verifyToken, async (req, res) => {
   try {
     const db = await getDb();
     const { mapId } = req.params;
-    
     // Check if user owns this map
     const map = await db.get('SELECT * FROM maps WHERE id = ? AND user_id = ?', [mapId, req.user.id]);
-    
+
     if (!map) {
       return res.status(404).json({ error: 'Map not found' });
     }
@@ -57,7 +56,7 @@ router.post('/', verifyToken, async (req, res) => {
     
     const result = await db.run(
       'INSERT INTO maps (user_id, name, is_public) VALUES (?, ?, ?)',
-      [req.user.id, name || 'New Map', is_public]
+      [req.user.id, name || 'New Map', is_public ? 1 : 0]
     );
     
     const map = await db.get('SELECT * FROM maps WHERE id = ?', [result.lastID]);

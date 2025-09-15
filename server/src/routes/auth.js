@@ -12,11 +12,20 @@ router.post('/sync', verifyToken, async (req, res) => {
     console.log('Sync: Received user data:', req.user);
     
     // Extract user data from the nested structure
-    const userData = req.user.user || req.user;
+    const userData = req.user;
     const { id, username, email, displayName } = userData;
     
     console.log('Sync: Extracted user fields:', { id, username, email, displayName });
-    
+
+    // Prepare values for database insertion
+    const dbParams = [
+      id,
+      username,
+      email || null,
+      displayName || username || null
+    ];
+    console.log('Sync: Database parameters:', dbParams);
+
     // Insert or update user (handle null values)
     await db.run(`
       INSERT INTO users (id, username, email, display_name)
@@ -26,23 +35,25 @@ router.post('/sync', verifyToken, async (req, res) => {
         email = excluded.email,
         display_name = excluded.display_name,
         updated_at = CURRENT_TIMESTAMP
-    `, [id, username, email || null, displayName || username]);
-    
+    `, dbParams);
+
     // Get or create default map for user
     let map = await db.get('SELECT * FROM maps WHERE user_id = ? ORDER BY created_at ASC LIMIT 1', [id]);
-    
+
     if (!map) {
       const result = await db.run(
         'INSERT INTO maps (user_id, name, is_public) VALUES (?, ?, ?)',
-        [id, 'My Travel Map', false]
+        [id, 'My Travel Map', 0]
       );
       map = await db.get('SELECT * FROM maps WHERE id = ?', [result.lastID]);
     }
     
-    res.json({ 
+    const responseData = {
       user: { id, username, email, displayName },
-      defaultMapId: map.id 
-    });
+      defaultMapId: map.id
+    };
+    console.log('Sync: Sending response:', responseData);
+    res.json(responseData);
   } catch (error) {
     console.error('Sync error:', error);
     res.status(500).json({ error: 'Failed to sync user data' });
